@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Jellyfin.Server": {
+      "commandName": "Project",
+      "commandLineArgs": "--service"
+    }
+  }
+}
