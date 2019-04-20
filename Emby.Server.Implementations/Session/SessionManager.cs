@@ -66,7 +66,11 @@ namespace Emby.Server.Implementations.Session
         private readonly ConcurrentDictionary<string, SessionInfo> _activeConnections =
             new ConcurrentDictionary<string, SessionInfo>(StringComparer.OrdinalIgnoreCase);
 
+        public event EventHandler<GenericEventArgs<AuthenticationAccountResult>> AuthenticationAccountFailed;
+
         public event EventHandler<GenericEventArgs<AuthenticationRequest>> AuthenticationFailed;
+
+        public event EventHandler<GenericEventArgs<AuthenticationAccountResult>> AuthenticationAccountSucceeded;
 
         public event EventHandler<GenericEventArgs<AuthenticationResult>> AuthenticationSucceeded;
 
@@ -1390,6 +1394,39 @@ namespace Emby.Server.Implementations.Session
             }
         }
 
+
+        /// <summary>
+        /// Authenticates the new account session.
+        /// </summary>
+        /// <param name="request">The request.</param>
+        /// <returns>Task{SessionInfo}.</returns>
+        public AuthenticationAccountResult AuthenticateNewSessionAccount(AuthenticationRequest request)
+        {
+            CheckDisposed();
+
+            var account = _userManager.AuthenticateAccount(request.Email, request.Password, request.PasswordSha1, request.RemoteEndPoint, true);
+
+            if (account == null)
+            {
+                AuthenticationFailed?.Invoke(this, new GenericEventArgs<AuthenticationRequest>(request));
+
+                throw new SecurityException("Invalid user or password entered.");
+            }
+
+            var token = GetAuthorizationToken(account, request.DeviceId, request.App, request.AppVersion, request.DeviceName);
+
+            var returnResult = new AuthenticationAccountResult
+            {
+                Account = account,
+                AccessToken = token,
+                ServerId = _appHost.SystemId
+            };
+
+            AuthenticationAccountSucceeded?.Invoke(this, new GenericEventArgs<AuthenticationAccountResult>(returnResult));
+
+            return returnResult;
+        }
+
         /// <summary>
         /// Authenticates the new session.
         /// </summary>
@@ -1471,6 +1508,64 @@ namespace Emby.Server.Implementations.Session
             return returnResult;
         }
 
+        private string GetAuthorizationToken(Account account, string deviceId, string app, string appVersion, string deviceName)
+        {
+            var existing = _authRepo.Get(new AuthenticationInfoQuery
+            {
+                DeviceId = deviceId,
+                UserId = account.Guid,
+                Limit = 1
+
+            }).Items.FirstOrDefault();
+
+            var allExistingForDevice = _authRepo.Get(new AuthenticationInfoQuery
+            {
+                DeviceId = deviceId
+
+            }).Items;
+
+            foreach (var auth in allExistingForDevice)
+            {
+                if (existing == null || !string.Equals(auth.AccessToken, existing.AccessToken, StringComparison.Ordinal))
+                {
+                    try
+                    {
+                        Logout(auth);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error while account logging out.");
+                    }
+                }
+            }
+
+            if (existing != null)
+            {
+                _logger.LogInformation("Reissuing access token: " + existing.AccessToken);
+                return existing.AccessToken;
+            }
+
+            var now = DateTime.UtcNow;
+
+            var newToken = new AuthenticationInfo
+            {
+                AppName = app,
+                AppVersion = appVersion,
+                DateCreated = now,
+                DateLastActivity = now,
+                DeviceId = deviceId,
+                DeviceName = deviceName,
+                UserId = account.Guid,
+                UserName = account.Email,
+                AccessToken = Guid.NewGuid().ToString("N")
+            };
+
+            _logger.LogInformation("Creating new access token for user {0}", account.Guid);
+            _authRepo.Create(newToken);
+
+            return newToken.AccessToken;
+        }
+
         private string GetAuthorizationToken(User user, string deviceId, string app, string appVersion, string deviceName)
         {
             var existing = _authRepo.Get(new AuthenticationInfoQuery
@@ -1489,7 +1584,7 @@ namespace Emby.Server.Implementations.Session
 
             foreach (var auth in allExistingForDevice)
             {
-                if (existing == null || !string.Equals(auth.AccessToken, existing.AccessToken, StringComparison.Ordinal))
+                if ((existing == null || !string.Equals(auth.AccessToken, existing.AccessToken, StringComparison.Ordinal)) && auth.UserName.IndexOf('@') == -1)
                 {
                     try
                     {

@@ -168,6 +168,8 @@ namespace MediaBrowser.WebDashboard.Api
 
             var files = new List<string>();
 
+            files.Add("scripts/polyfills.js" + versionString);
+
             files.Add("scripts/apploader.js" + versionString);
 
             if (string.Equals(mode, "cordova", StringComparison.OrdinalIgnoreCase))

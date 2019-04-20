@@ -17,6 +17,12 @@ namespace MediaBrowser.Controller.Library
     public interface IUserManager
     {
         /// <summary>
+        /// Gets the accounts.
+        /// </summary>
+        /// <value>The users.</value>
+        IEnumerable<Account> Accounts { get; }
+
+        /// <summary>
         /// Gets the users.
         /// </summary>
         /// <value>The users.</value>
@@ -86,6 +92,15 @@ namespace MediaBrowser.Controller.Library
         void UpdateUser(User user);
 
         /// <summary>
+        /// Creates the account.
+        /// </summary>
+        /// <param account="account">The account.</param>
+        /// <returns>Account.</returns>
+        /// <exception cref="ArgumentNullException">name</exception>
+        /// <exception cref="ArgumentException"></exception>
+        Task<Account> CreateAccount(Account account);
+
+        /// <summary>
         /// Creates the user.
         /// </summary>
         /// <param name="name">The name.</param>
@@ -93,6 +108,16 @@ namespace MediaBrowser.Controller.Library
         /// <exception cref="ArgumentNullException">name</exception>
         /// <exception cref="ArgumentException"></exception>
         Task<User> CreateUser(string name);
+
+        /// <summary>
+        /// Creates the user.
+        /// </summary>
+        /// <param name="name">The name.</param>
+        /// <param name="account">The account.</param>
+        /// <returns>User.</returns>
+        /// <exception cref="ArgumentNullException">name</exception>
+        /// <exception cref="ArgumentException"></exception>
+        Task<User> CreateUser(string name, Account account);
 
         /// <summary>
         /// Deletes the user.
@@ -141,6 +166,11 @@ namespace MediaBrowser.Controller.Library
         /// <param name="remoteEndPoint">The remote end point.</param>
         /// <returns>UserDto.</returns>
         UserDto GetUserDto(User user, string remoteEndPoint = null);
+
+        /// <summary>
+        /// Authenticates the account.
+        /// </summary>
+        Account AuthenticateAccount(string email, string password, string passwordSha1, string remoteEndPoint, bool isUserSession);
 
         /// <summary>
         /// Authenticates the user.

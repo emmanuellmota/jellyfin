@@ -49,6 +49,7 @@ namespace Emby.Server.Implementations.HttpServer.Security
             string client = null;
             string version = null;
             string token = null;
+            string accountToken = null;
 
             if (auth != null)
             {
@@ -57,6 +58,7 @@ namespace Emby.Server.Implementations.HttpServer.Security
                 auth.TryGetValue("Client", out client);
                 auth.TryGetValue("Version", out version);
                 auth.TryGetValue("Token", out token);
+                auth.TryGetValue("AccountToken", out accountToken);
             }
 
             if (string.IsNullOrEmpty(token))
@@ -68,6 +70,7 @@ namespace Emby.Server.Implementations.HttpServer.Security
             {
                 token = httpReq.Headers["X-MediaBrowser-Token"];
             }
+
             if (string.IsNullOrEmpty(token))
             {
                 token = httpReq.QueryString["api_key"];
@@ -79,14 +82,18 @@ namespace Emby.Server.Implementations.HttpServer.Security
                 Device = device,
                 DeviceId = deviceId,
                 Version = version,
+                AccountToken = accountToken,
                 Token = token
             };
 
-            if (!string.IsNullOrWhiteSpace(token))
+            if (!string.IsNullOrWhiteSpace(token) || !string.IsNullOrWhiteSpace(accountToken))
             {
-                var result = _authRepo.Get(new AuthenticationInfoQuery
+                var result = token != null ? _authRepo.Get(new AuthenticationInfoQuery
                 {
                     AccessToken = token
+                }) : _authRepo.Get(new AuthenticationInfoQuery
+                {
+                    AccessToken = accountToken
                 });
 
                 var tokenInfo = result.Items.Length > 0 ? result.Items[0] : null;
@@ -113,7 +120,6 @@ namespace Emby.Server.Implementations.HttpServer.Security
                     {
                         info.Device = tokenInfo.DeviceName;
                     }
-
                     else if (!string.Equals(info.Device, tokenInfo.DeviceName, StringComparison.OrdinalIgnoreCase))
                     {
                         if (allowTokenInfoUpdate)
@@ -144,11 +150,18 @@ namespace Emby.Server.Implementations.HttpServer.Security
 
                     if (!tokenInfo.UserId.Equals(Guid.Empty))
                     {
+                        info.Account = _userManager.Accounts.FirstOrDefault(i => i.Guid == tokenInfo.UserId);
                         info.User = _userManager.GetUserById(tokenInfo.UserId);
 
                         if (info.User != null && !string.Equals(info.User.Name, tokenInfo.UserName, StringComparison.OrdinalIgnoreCase))
                         {
                             tokenInfo.UserName = info.User.Name;
+                            updateToken = true;
+                        }
+
+                        if (info.Account != null && !string.Equals(info.Account.Email, tokenInfo.UserName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            tokenInfo.UserName = info.Account.Email;
                             updateToken = true;
                         }
                     }
@@ -158,6 +171,7 @@ namespace Emby.Server.Implementations.HttpServer.Security
                         _authRepo.Update(tokenInfo);
                     }
                 }
+
                 httpReq.Items["OriginalAuthenticationInfo"] = tokenInfo;
             }
 

@@ -15,6 +15,13 @@
     </None>
   </ItemGroup>
 
+  <ItemGroup>
+    <None Remove="jellyfin-web\src\scripts\apiclientenhancement.js" />
+    <None Remove="jellyfin-web\src\scripts\apiclientenhancement.js" />
+    <None Remove="jellyfin-web\src\scripts\blurheader.js" />
+    <None Remove="jellyfin-web\src\scripts\blurheader.js" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>

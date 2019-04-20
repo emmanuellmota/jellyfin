@@ -227,6 +227,16 @@ namespace MediaBrowser.Api.Session
         public string Id { get; set; }
     }
 
+    [Route("/Sessions/IsValidAccountToken", "POST", Summary = "Check if account token is valid")]
+    public class IsValidAccountToken : IReturnVoid
+    {
+        [ApiMember(Name = "ServerId", Description = "Server Id", IsRequired = true, DataType = "string", ParameterType = "query", Verb = "POST")]
+        public string ServerId { get; set; }
+
+        [ApiMember(Name = "AccessToken", Description = "Account Token", IsRequired = true, DataType = "string", ParameterType = "query", Verb = "POST")]
+        public string AccessToken { get; set; }
+    }
+
     [Route("/Sessions/Logout", "POST", Summary = "Reports that a session has ended")]
     [Authenticated]
     public class ReportSessionEnded : IReturnVoid
@@ -322,6 +332,17 @@ namespace MediaBrowser.Api.Session
                 DeviceName = _appHost.FriendlyName,
                 AppVersion = _appHost.ApplicationVersion
             });
+        }
+
+        public bool Post(IsValidAccountToken request)
+        {
+            var existing = _authRepo.Get(new AuthenticationInfoQuery
+            {
+                AccessToken = request.AccessToken
+
+            }).Items.Length;
+
+            return existing == 0 ? false : true;
         }
 
         public void Post(ReportSessionEnded request)

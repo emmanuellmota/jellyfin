@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using MediaBrowser.Controller.Entities;
 
@@ -14,6 +15,18 @@ namespace MediaBrowser.Controller.Persistence
         /// <param name="user">The user.</param>
         /// <returns>Task.</returns>
         void DeleteUser(User user);
+
+        // TODO: Delete Account
+
+        /// <summary>
+        /// Retrieves all accounts.
+        /// </summary>
+        /// <returns>IEnumerable{Account}.</returns>
+        List<Account> RetrieveAllAccounts();
+
+        void CreateAccount(Account account);
+        void UpdateAccount(Account account);
+        Account GetAccount(Guid guid, bool openLock);
 
         /// <summary>
         /// Retrieves all users.

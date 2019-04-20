@@ -199,5 +199,13 @@ namespace Emby.Server.Implementations.Library
                 return PasswordHash.ConvertToByteString(_cryptographyProvider.ComputeHash(passwordHash.Id, Encoding.UTF8.GetBytes(str)));
             }
         }
+
+        /// <summary>
+        /// Gets the hashed string.
+        /// </summary>
+        public string GetHashedString(string str)
+        {
+            return BitConverter.ToString(_cryptographyProvider.ComputeSHA1(Encoding.UTF8.GetBytes(str))).Replace("-", string.Empty);
+        }
     }
 }

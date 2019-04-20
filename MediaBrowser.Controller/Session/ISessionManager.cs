@@ -240,6 +240,13 @@ namespace MediaBrowser.Controller.Session
         void ReportNowViewingItem(string sessionId, BaseItemDto item);
 
         /// <summary>
+        /// Authenticates the new account session.
+        /// </summary>
+        /// <param name="request">The request.</param>
+        /// <returns>Task{SessionInfo}.</returns>
+        AuthenticationAccountResult AuthenticateNewSessionAccount(AuthenticationRequest request);
+
+        /// <summary>
         /// Authenticates the new session.
         /// </summary>
         /// <param name="request">The request.</param>

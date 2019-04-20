@@ -35,6 +35,12 @@ namespace MediaBrowser.Model.Dto
         public Guid Id { get; set; }
 
         /// <summary>
+        /// Gets or sets the account email.
+        /// </summary>
+        /// <value>The email.</value>
+        public string AccountEmail { get; set; }
+
+        /// <summary>
         /// Gets or sets the primary image tag.
         /// </summary>
         /// <value>The primary image tag.</value>
@@ -71,6 +77,12 @@ namespace MediaBrowser.Model.Dto
         /// </summary>
         /// <value>The last activity date.</value>
         public DateTime? LastActivityDate { get; set; }
+
+        /// <summary>
+        /// Gets or sets the session.
+        /// </summary>
+        /// <value>The session.</value>
+        public object Session { get; set; }
 
         /// <summary>
         /// Gets or sets the configuration.

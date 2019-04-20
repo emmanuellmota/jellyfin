@@ -424,13 +424,17 @@ namespace MediaBrowser.Api.Images
         public Task Post(PostUserImage request)
         {
             var userId = GetPathValue(1);
-            AssertCanUpdateUser(_authContext, _userManager, new Guid(userId), true);
+            var user = _userManager.GetUserById(userId);
+            var accessToken = _authContext.GetAuthorizationInfo(Request);
+
+            if (accessToken.Account == null || user.AccountId != accessToken.Account.Id)
+            {
+                AssertCanUpdateUser(_authContext, _userManager, new Guid(userId), true);
+            }
 
             request.Type = (ImageType)Enum.Parse(typeof(ImageType), GetPathValue(3), true);
 
-            var item = _userManager.GetUserById(userId);
-
-            return PostImage(item, request.RequestStream, request.Type, Request.ContentType);
+            return PostImage(user, request.RequestStream, request.Type, Request.ContentType);
         }
 
         /// <summary>

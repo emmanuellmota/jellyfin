@@ -47,7 +47,7 @@ namespace Emby.Server.Implementations.HttpServer.Security
 
             if (!IsExemptFromAuthenticationToken(authAttribtues, request))
             {
-                ValidateSecurityToken(request, auth.Token);
+                ValidateSecurityToken(request, auth.Token != null ? auth.Token : auth.AccountToken);
             }
 
             if (authAttribtues.AllowLocalOnly && !request.IsLocal)
@@ -158,7 +158,7 @@ namespace Emby.Server.Implementations.HttpServer.Security
                 return true;
             }
 
-            if (string.IsNullOrEmpty(auth.Token))
+            if (string.IsNullOrEmpty(auth.Token) && string.IsNullOrEmpty(auth.AccountToken))
             {
                 return true;
             }

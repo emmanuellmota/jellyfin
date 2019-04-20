@@ -41,6 +41,14 @@ namespace Emby.Server.Implementations.Library
     public class UserManager : IUserManager
     {
         /// <summary>
+        /// Gets the accounts.
+        /// </summary>
+        /// <value>The accounts.</value>
+        public IEnumerable<Account> Accounts { get { return _accounts; } }
+
+        private Account[] _accounts;
+
+        /// <summary>
         /// Gets the users.
         /// </summary>
         /// <value>The users.</value>
@@ -64,6 +72,7 @@ namespace Emby.Server.Implementations.Library
         /// </summary>
         /// <value>The user repository.</value>
         private IUserRepository UserRepository { get; set; }
+
         public event EventHandler<GenericEventArgs<User>> UserPasswordChanged;
 
         private readonly IXmlSerializer _xmlSerializer;
@@ -218,6 +227,8 @@ namespace Emby.Server.Implementations.Library
 
         public void Initialize()
         {
+            _accounts = LoadAccounts();
+
             _users = LoadUsers();
 
             var users = Users.ToList();
@@ -238,7 +249,7 @@ namespace Emby.Server.Implementations.Library
             // This is some regex that matches only on unicode "word" characters, as well as -, _ and @
             // In theory this will cut out most if not all 'control' characters which should help minimize any weirdness
              // Usernames can contain letters (a-z + whatever else unicode is cool with), numbers (0-9), at-signs (@), dashes (-), underscores (_), apostrophes ('), and periods (.)
-            return Regex.IsMatch(username, @"^[\w\-'._@]*$");
+            return Regex.IsMatch(username, @"^[\w\[\]]*$");
         }
 
         private static bool IsValidUsernameCharacter(char i)
@@ -263,7 +274,42 @@ namespace Emby.Server.Implementations.Library
                     builder.Append(c);
                 }
             }
+
             return builder.ToString();
+        }
+
+        public Account AuthenticateAccount(string email, string password, string hashedPassword, string remoteEndPoint, bool isUserSession)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                throw new ArgumentNullException("email");
+            }
+
+            if (hashedPassword == null)
+            {
+                hashedPassword = _defaultAuthenticationProvider.GetHashedString(password);
+            }
+
+            var account = Accounts
+                 .FirstOrDefault(i => string.Equals(email, i.Email, StringComparison.OrdinalIgnoreCase) && string.Equals(hashedPassword, i.Password));
+
+            if (account == null)
+            {
+                throw new SecurityException("Email ou senha inválida.");
+            }
+
+            if (!account.Enabled)
+            {
+                throw new SecurityException("Esta conta está desabilitada, consulte o Administrador.");
+            }
+
+            if (account.ExpDate != null && DateTime.Compare(account.ExpDate.GetValueOrDefault(), DateTime.Now) < 0)
+            {
+                throw new SecurityException("Esta conta está expirada, entre em contato com o revendedor para renovar seu plano.");
+            }
+
+            return account;
+
         }
 
         public async Task<User> AuthenticateUser(string username, string password, string hashedPassword, string remoteEndPoint, bool isUserSession)
@@ -532,6 +578,35 @@ namespace Emby.Server.Implementations.Library
         }
 
         /// <summary>
+        /// Loads the accounts from the repository
+        /// </summary>
+        /// <returns>IEnumerable{Account}.</returns>
+        private Account[] LoadAccounts()
+        {
+            var accounts = UserRepository.RetrieveAllAccounts();
+
+            // TODO
+            // There always has to be at least one user.
+            if (accounts.Count == 0)
+            {
+                var defaultName = Environment.UserName;
+                if (string.IsNullOrWhiteSpace(defaultName))
+                {
+                    defaultName = "ClientNeexTV";
+                }
+                var name = MakeValidUsername(defaultName);
+
+                var account = InstantiateNewAccount();
+
+                UserRepository.CreateAccount(account);
+
+                accounts.Add(account);
+            }
+
+            return accounts.ToArray();
+        }
+
+        /// <summary>
         /// Loads the users from the repository
         /// </summary>
         /// <returns>IEnumerable{User}.</returns>
@@ -545,8 +620,9 @@ namespace Emby.Server.Implementations.Library
                 var defaultName = Environment.UserName;
                 if (string.IsNullOrWhiteSpace(defaultName))
                 {
-                    defaultName = "MyJellyfinUser";
+                    defaultName = "ClientNeexTV";
                 }
+
                 var name = MakeValidUsername(defaultName);
 
                 var user = InstantiateNewUser(name);
@@ -582,6 +658,7 @@ namespace Emby.Server.Implementations.Library
 
             UserDto dto = new UserDto
             {
+                AccountEmail = user.AccountEmail,
                 Id = user.Id,
                 Name = user.Name,
                 HasPassword = hasPassword,
@@ -715,9 +792,48 @@ namespace Emby.Server.Implementations.Library
             OnUserUpdated(user);
         }
 
+        public event EventHandler<GenericEventArgs<Account>> AccountCreated;
+
         public event EventHandler<GenericEventArgs<User>> UserCreated;
 
         private readonly SemaphoreSlim _userListLock = new SemaphoreSlim(1, 1);
+
+        /// <summary>
+        /// Creates the account.
+        /// </summary>
+        /// <param account="account">The account.</param>
+        /// <returns>Account.</returns>
+        /// <exception cref="ArgumentNullException">name</exception>
+        /// <exception cref="ArgumentException"></exception>
+        public async Task<Account> CreateAccount(Account account)
+        {
+            account.Password = _defaultAuthenticationProvider.GetHashedString(account.Password);
+
+            if (Accounts.Any(a => a.Email.Equals(account.Email, StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new ArgumentException(string.Format("A account with the email '{0}' already exists.", account.Email));
+            }
+
+            await _userListLock.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+
+            try
+            {
+                UserRepository.CreateAccount(account);
+                Account newAccount = UserRepository.GetAccount(account.Guid, false);
+
+                var list = Accounts.ToList();
+                list.Add(newAccount);
+                _accounts = list.ToArray();
+
+                EventHelper.QueueEventIfNotNull(AccountCreated, this, new GenericEventArgs<Account> { Argument = newAccount }, _logger);
+
+                return newAccount;
+            }
+            finally
+            {
+                _userListLock.Release();
+            }
+        }
 
         /// <summary>
         /// Creates the user.
@@ -727,6 +843,11 @@ namespace Emby.Server.Implementations.Library
         /// <exception cref="ArgumentNullException">name</exception>
         /// <exception cref="ArgumentException"></exception>
         public async Task<User> CreateUser(string name)
+        {
+            return await CreateUser(name, null);
+        }
+
+        public async Task<User> CreateUser(string name, Account account)
         {
             if (string.IsNullOrWhiteSpace(name))
             {
@@ -740,7 +861,7 @@ namespace Emby.Server.Implementations.Library
 
             if (Users.Any(u => u.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
             {
-                throw new ArgumentException(string.Format("A user with the name '{0}' already exists.", name));
+                throw new ArgumentException("Já existe um perfil com este nome.");
             }
 
             await _userListLock.WaitAsync(CancellationToken.None).ConfigureAwait(false);
@@ -758,6 +879,46 @@ namespace Emby.Server.Implementations.Library
                 UserRepository.CreateUser(user);
 
                 EventHelper.QueueEventIfNotNull(UserCreated, this, new GenericEventArgs<User> { Argument = user }, _logger);
+
+                if (account != null)
+                {
+                    user.Password = account.Password;
+                    user.AccountId = account.Id;
+
+                    user.Policy.BlockedChannels = null;
+                    user.Policy.BlockedMediaFolders = null;
+                    user.Policy.BlockedTags = Array.Empty<string>();
+                    user.Policy.EnableAllChannels = true;
+                    user.Policy.EnableAllDevices = true;
+                    user.Policy.EnableAllFolders = true;
+                    user.Policy.EnableAudioPlaybackTranscoding = true;
+                    user.Policy.EnableContentDeletion = false;
+                    user.Policy.EnableContentDeletionFromFolders = Array.Empty<string>();
+                    user.Policy.EnableContentDownloading = false;
+                    user.Policy.EnableLiveTvAccess = true;
+                    user.Policy.EnableLiveTvManagement = false;
+                    user.Policy.EnableMediaConversion = false;
+                    user.Policy.EnableMediaPlayback = true;
+                    user.Policy.EnablePlaybackRemuxing = true;
+                    user.Policy.EnablePublicSharing = false;
+                    user.Policy.EnableRemoteAccess = true;
+                    user.Policy.EnableRemoteControlOfOtherUsers = false;
+                    user.Policy.EnableSharedDeviceControl = false;
+                    user.Policy.EnableSyncTranscoding = false;
+                    user.Policy.EnableUserPreferenceAccess = true;
+                    user.Policy.EnableVideoPlaybackTranscoding = true;
+                    user.Policy.EnabledChannels = Array.Empty<string>();
+                    user.Policy.EnabledDevices = Array.Empty<string>();
+                    user.Policy.EnabledFolders = Array.Empty<string>();
+                    user.Policy.IsAdministrator = false;
+                    user.Policy.IsDisabled = false;
+                    user.Policy.IsHidden = true;
+                    user.Policy.MaxParentalRating = null;
+
+                    UpdateUserPolicy(user.Id, user.Policy);
+                    UpdateUser(user);
+                    await ChangePassword(user, account.Password).ConfigureAwait(false);
+                }
 
                 return user;
             }
@@ -880,6 +1041,19 @@ namespace Emby.Server.Implementations.Library
         }
 
         /// <summary>
+        /// Instantiates the new account.
+        /// </summary>
+        /// <returns>Account.</returns>
+        private Account InstantiateNewAccount()
+        {
+            return new Account
+            {
+                Guid = Guid.NewGuid(),
+                DateCreated = DateTime.UtcNow
+            };
+        }
+
+        /// <summary>
         /// Instantiates the new user.
         /// </summary>
         /// <param name="name">The name.</param>
@@ -975,6 +1149,7 @@ namespace Emby.Server.Implementations.Library
         }
 
         private readonly object _policySyncLock = new object();
+
         public void UpdateUserPolicy(Guid userId, UserPolicy userPolicy)
         {
             var user = GetUserById(userId);

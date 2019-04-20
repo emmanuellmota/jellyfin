@@ -18,6 +18,12 @@ namespace MediaBrowser.Controller.Entities
         public static IUserManager UserManager { get; set; }
         public static IXmlSerializer XmlSerializer { get; set; }
 
+        [IgnoreDataMember]
+        public int AccountId { get; set; }
+
+        [IgnoreDataMember]
+        public string AccountEmail { get; set; }
+
         /// <summary>
         /// From now on all user paths will be Id-based.
         /// This is for backwards compatibility.
@@ -291,7 +297,6 @@ namespace MediaBrowser.Controller.Entities
         public override bool SupportsPeople => false;
 
         public long InternalId { get; set; }
-
 
     }
 }

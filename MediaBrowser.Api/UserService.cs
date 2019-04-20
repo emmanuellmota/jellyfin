@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using MediaBrowser.Common.Extensions;
@@ -6,8 +8,10 @@ using MediaBrowser.Common.Net;
 using MediaBrowser.Controller.Authentication;
 using MediaBrowser.Controller.Configuration;
 using MediaBrowser.Controller.Devices;
+using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Net;
+using MediaBrowser.Controller.Security;
 using MediaBrowser.Controller.Session;
 using MediaBrowser.Model.Configuration;
 using MediaBrowser.Model.Dto;
@@ -17,10 +21,20 @@ using MediaBrowser.Model.Users;
 namespace MediaBrowser.Api
 {
     /// <summary>
+    /// Class PostUsers
+    /// </summary>
+    [Route("/Users", "POST", Summary = "Gets a list of users")]
+    public class PostUsers : IReturn<UserDto[]>
+    {
+        [ApiMember(Name = "AccessToken", Description = "Account Token", IsRequired = true, DataType = "string", ParameterType = "query", Verb = "POST")]
+        public string AccessToken { get; set; }
+    }
+
+    /// <summary>
     /// Class GetUsers
     /// </summary>
     [Route("/Users", "GET", Summary = "Gets a list of users")]
-    [Authenticated]
+    [Authenticated(Roles = "Admin")]
     public class GetUsers : IReturn<UserDto[]>
     {
         [ApiMember(Name = "IsHidden", Description = "Optional filter by IsHidden=true or false", IsRequired = false, DataType = "bool", ParameterType = "query", Verb = "GET")]
@@ -117,6 +131,49 @@ namespace MediaBrowser.Api
     }
 
     /// <summary>
+    /// Class AuthenticateProfile
+    /// </summary>
+    [Route("/Users/AuthenticateAccount", "POST", Summary = "Authenticates a profile")]
+    public class AuthenticateAccount : IReturn<AuthenticationResult>
+    {
+        /// <summary>
+        /// Gets or sets the email.
+        /// </summary>
+        /// <value>The email.</value>
+        [ApiMember(Name = "Email", IsRequired = true, DataType = "string", ParameterType = "body", Verb = "POST")]
+        public string Email { get; set; }
+
+        /// <summary>
+        /// Gets or sets the password.
+        /// </summary>
+        /// <value>The password.</value>
+        [ApiMember(Name = "Password", IsRequired = true, DataType = "string", ParameterType = "body", Verb = "POST")]
+        public string Password { get; set; }
+    }
+
+
+    /// <summary>
+    /// Class AuthenticateUser
+    /// </summary>
+    [Route("/Users/AuthenticateByToken", "POST", Summary = "Authenticates a user")]
+    public class AuthenticateAccountByToken : IReturn<AuthenticationResult>
+    {
+        /// <summary>
+        /// Gets or sets the id.
+        /// </summary>
+        /// <value>The id.</value>
+        [ApiMember(Name = "Guid", IsRequired = true, DataType = "string", ParameterType = "body", Verb = "POST")]
+        public string Guid { get; set; }
+
+        /// <summary>
+        /// Gets or sets the access token.
+        /// </summary>
+        /// <value>The access token.</value>
+        [ApiMember(Name = "AccessToken", IsRequired = true, DataType = "string", ParameterType = "body", Verb = "POST")]
+        public string AccessToken { get; set; }
+    }
+
+    /// <summary>
     /// Class UpdateUserPassword
     /// </summary>
     [Route("/Users/{Id}/Password", "POST", Summary = "Updates a user's password")]
@@ -184,6 +241,20 @@ namespace MediaBrowser.Api
     }
 
     /// <summary>
+    /// Class UpdateUser 
+    /// </summary>
+    [Route("/Users/{Id}/Policy/MaxParentalRating", "POST", Summary = "Updates a user max parental rating policy")]
+    [Authenticated]
+    public class UpdateUserMaxParentalRatingPolicy : IReturnVoid
+    {
+        [ApiMember(Name = "User Id", IsRequired = true, DataType = "string", ParameterType = "path", Verb = "POST")]
+        public Guid Id { get; set; }
+
+        [ApiMember(Name = "MaxParentalRating", IsRequired = false, DataType = "int", ParameterType = "body", Verb = "POST")]
+        public int? MaxParentalRating { get; set; }
+    }
+
+    /// <summary>
     /// Class UpdateUser
     /// </summary>
     [Route("/Users/{Id}/Policy", "POST", Summary = "Updates a user policy")]
@@ -209,11 +280,62 @@ namespace MediaBrowser.Api
     /// Class CreateUser
     /// </summary>
     [Route("/Users/New", "POST", Summary = "Creates a user")]
-    [Authenticated(Roles = "Admin")]
     public class CreateUserByName : IReturn<UserDto>
     {
+        /// <summary>
+        /// Gets or sets the name.
+        /// </summary>
+        /// <value>The name.</value>
         [ApiMember(Name = "Name", IsRequired = true, DataType = "string", ParameterType = "body", Verb = "POST")]
         public string Name { get; set; }
+
+        /// <summary>
+        /// Gets or sets the access token.
+        /// </summary>
+        /// <value>The access token.</value>
+        [ApiMember(Name = "AccessToken", IsRequired = true, DataType = "string", ParameterType = "body", Verb = "POST")]
+        public string AccessToken { get; set; }
+    }
+
+    /// <summary>
+    /// Class CreateAccount
+    /// </summary>
+    [Route("/Users/NewAccount", "POST", Summary = "Creates a account")]
+    [Authenticated(Roles = "Admin")]
+    public class CreateAccount : IReturn<UserDto>
+    {
+        [ApiMember(Name = "Email", IsRequired = true, DataType = "string", ParameterType = "body", Verb = "POST")]
+        public string Email { get; set; }
+
+        [ApiMember(Name = "Enabled", IsRequired = false, DataType = "bool", ParameterType = "body", Verb = "POST")]
+        public bool Enabled { get; set; }
+
+        [ApiMember(Name = "Password", IsRequired = true, DataType = "string", ParameterType = "body", Verb = "POST")]
+        public string Password { get; set; }
+
+        [ApiMember(Name = "IsTrial", IsRequired = false, DataType = "string", ParameterType = "body", Verb = "POST")]
+        public bool IsTrial { get; set; }
+
+        [ApiMember(Name = "ExpDate", IsRequired = false, DataType = "string", ParameterType = "body", Verb = "POST")]
+        public string ExpDate { get; set; }
+
+        [ApiMember(Name = "Notes", IsRequired = false, DataType = "string", ParameterType = "body", Verb = "POST")]
+        public string Notes { get; set; }
+
+        [ApiMember(Name = "GroupId", IsRequired = false, DataType = "int", ParameterType = "body", Verb = "POST")]
+        public int GroupId { get; set; }
+
+        [ApiMember(Name = "PlainId", IsRequired = false, DataType = "int", ParameterType = "body", Verb = "POST")]
+        public int PlainId { get; set; }
+
+        [ApiMember(Name = "Credit", IsRequired = false, DataType = "int", ParameterType = "body", Verb = "POST")]
+        public int Credit { get; set; }
+
+        [ApiMember(Name = "CreatedById", IsRequired = false, DataType = "int", ParameterType = "body", Verb = "POST")]
+        public int CreatedById { get; set; }
+
+        [ApiMember(Name = "Profiles", IsRequired = false, DataType = "Array<string>", ParameterType = "body", Verb = "POST")]
+        public List<string> Profiles { get; set; }
     }
 
     [Route("/Users/ForgotPassword", "POST", Summary = "Initiates the forgot password process for a local user")]
@@ -240,19 +362,64 @@ namespace MediaBrowser.Api
         /// </summary>
         private readonly IUserManager _userManager;
         private readonly ISessionManager _sessionMananger;
+        private readonly IAuthenticationRepository _authRepo;
         private readonly IServerConfigurationManager _config;
         private readonly INetworkManager _networkManager;
         private readonly IDeviceManager _deviceManager;
         private readonly IAuthorizationContext _authContext;
 
-        public UserService(IUserManager userManager, ISessionManager sessionMananger, IServerConfigurationManager config, INetworkManager networkManager, IDeviceManager deviceManager, IAuthorizationContext authContext)
+        public UserService(IUserManager userManager, ISessionManager sessionMananger, IAuthenticationRepository authRepo, IServerConfigurationManager config, INetworkManager networkManager, IDeviceManager deviceManager, IAuthorizationContext authContext)
         {
             _userManager = userManager;
             _sessionMananger = sessionMananger;
+            _authRepo = authRepo;
             _config = config;
             _networkManager = networkManager;
             _deviceManager = deviceManager;
             _authContext = authContext;
+        }
+
+
+
+        /// <summary>
+        /// Gets the specified request.
+        /// </summary>
+        /// <param name="request">The request.</param>
+        /// <returns>System.Object.</returns>
+        public object Post(PostUsers request)
+        {
+            var users = _userManager.Users;
+
+            var session = _authRepo.Get(new AuthenticationInfoQuery
+            {
+                AccessToken = request.AccessToken
+
+            }).Items.FirstOrDefault();
+
+            if (session == null)
+            {
+                throw new ArgumentException("Invalid access token.");
+            }
+
+            var account = _userManager.Accounts.FirstOrDefault(i => i.Guid == session.UserId);
+
+            if (account == null)
+            {
+                throw new ArgumentException("Invalid account.");
+            }
+
+            users = users.Where(i => i.AccountId == account.Id);
+
+            var result = users
+                .OrderBy(u => u.Name)
+                .Select(i => {
+                    var dto = _userManager.GetUserDto(i, Request.RemoteIp);
+                    dto.Session = _sessionMananger.Sessions.FirstOrDefault(u => u.UserId == i.Id);
+                    return dto;
+                })
+                .ToArray();
+
+            return ToOptimizedResult(result);
         }
 
         public object Get(GetPublicUsers request)
@@ -317,9 +484,12 @@ namespace MediaBrowser.Api
             }
 
             var result = users
-                .OrderBy(u => u.Name)
-                .Select(i => _userManager.GetUserDto(i, Request.RemoteIp))
-                .ToArray();
+                    .OrderBy(u => u.Name)
+                    .Select(i => {
+                        i.AccountEmail = _userManager.Accounts.First(a => a.Id == i.AccountId)?.Email;
+                        return _userManager.GetUserDto(i, Request.RemoteIp);
+                    })
+                    .ToArray();
 
             return ToOptimizedResult(result);
         }
@@ -364,6 +534,73 @@ namespace MediaBrowser.Api
             _sessionMananger.RevokeUserTokens(user.Id, null);
 
             return _userManager.DeleteUser(user);
+        }
+
+        /// <summary>
+        /// Posts the specified request.
+        /// </summary>
+        /// <param name="request">The request.</param>
+        public async Task<object> Post(AuthenticateAccount request)
+        {
+            var auth = _authContext.GetAuthorizationInfo(Request);
+
+            var result = _sessionMananger.AuthenticateNewSessionAccount(new AuthenticationRequest
+            {
+                App = auth.Client,
+                AppVersion = auth.Version,
+                DeviceId = auth.DeviceId,
+                DeviceName = auth.Device,
+                Password = request.Password,
+                RemoteEndPoint = Request.RemoteIp,
+                Email = request.Email
+
+            });
+
+            return ToOptimizedResult(result);
+        }
+
+        public async Task<object> Post(AuthenticateAccountByToken request)
+        {
+            var session = _authRepo.Get(new AuthenticationInfoQuery
+            {
+                AccessToken = request.AccessToken
+
+            }).Items.FirstOrDefault();
+
+            if (session == null)
+            {
+                throw new ArgumentException("Invalid access token.");
+            }
+
+            var account = _userManager.Accounts.FirstOrDefault(i => i.Guid == session.UserId);
+
+            if (account == null)
+            {
+                throw new ArgumentException("Invalid account.");
+            }
+
+            var user = _userManager.Users.FirstOrDefault(i => i.AccountId == account.Id && i.Id == Guid.Parse(request.Guid));
+
+            if (user == null)
+            {
+                throw new ArgumentException("Invalid account.");
+            }
+
+            var auth = _authContext.GetAuthorizationInfo(Request);
+
+            var result = await _sessionMananger.AuthenticateNewSession(new AuthenticationRequest
+            {
+                App = auth.Client,
+                AppVersion = auth.Version,
+                DeviceId = auth.DeviceId,
+                DeviceName = auth.Device,
+                PasswordSha1 = user.Password,
+                RemoteEndPoint = Request.RemoteIp,
+                Username = user.Name
+
+            }).ConfigureAwait(false);
+
+            return ToOptimizedResult(result);
         }
 
         /// <summary>
@@ -501,15 +738,78 @@ namespace MediaBrowser.Api
         /// </summary>
         /// <param name="request">The request.</param>
         /// <returns>System.Object.</returns>
+        public async Task<object> Post(CreateAccount request)
+        {
+            request.ExpDate.Equals(null);
+
+            Account newAccount = await _userManager.CreateAccount(new Account
+            {
+                CreateById = request.CreatedById,
+                Credit = request.Credit,
+                DateCreated = DateTime.UtcNow,
+                Email = request.Email,
+                Enabled = request.Enabled,
+                ExpDate = request.ExpDate.Equals(null) ? request.IsTrial ? DateTime.Today.AddDays(10) : (DateTime?) null : DateTime.ParseExact(request.ExpDate, "dd/MM/yyyy", CultureInfo.InvariantCulture),
+                GroupId = request.GroupId,
+                Guid = Guid.NewGuid(),
+                IsTrial = request.IsTrial,
+                Notes = request.Notes,
+                Password = request.Password,
+                PlainId = request.PlainId,
+            }).ConfigureAwait(false);
+
+            request.Profiles.ForEach(async name => {
+                User user = await _userManager.CreateUser(String.Format("[{0}]{1}", newAccount.Guid.ToString("N"), name), newAccount).ConfigureAwait(false);
+            });
+
+            return null;
+
+            // var result = _userManager.GetUserDto(newUser, Request.RemoteIp);
+            // return ToOptimizedResult(result);
+        }
+
+        /// <summary>
+        /// Posts the specified request.
+        /// </summary>
+        /// <param name="request">The request.</param>
+        /// <returns>System.Object.</returns>
         public async Task<object> Post(CreateUserByName request)
         {
             var dtoUser = request;
 
-            var newUser = await _userManager.CreateUser(dtoUser.Name).ConfigureAwait(false);
+            var users = _userManager.Users;
 
-            var result = _userManager.GetUserDto(newUser, Request.RemoteIp);
+            var session = _authRepo.Get(new AuthenticationInfoQuery
+            {
+                AccessToken = request.AccessToken
 
-            return ToOptimizedResult(result);
+            }).Items.FirstOrDefault();
+
+            if (session == null)
+            {
+                throw new ArgumentException("Invalid access token.");
+            }
+
+            var account = _userManager.Accounts.FirstOrDefault(i => i.Guid == session.UserId);
+
+            if (account == null)
+            {
+                throw new ArgumentException("Invalid account.");
+            }
+
+            var profiles = users.Where(i => i.AccountId == account.Id).ToList();
+
+            if (profiles.Count < 5)
+            {
+                var newUser = await _userManager.CreateUser(String.Format("[{0}]{1}", account.Guid.ToString("N"), dtoUser.Name), account).ConfigureAwait(false);
+
+                var result = _userManager.GetUserDto(newUser, Request.RemoteIp);
+
+                return ToOptimizedResult(result);
+
+            }
+
+            throw new ArgumentException("The maximum number of profiles has been reached.");
         }
 
         /// <summary>
@@ -539,6 +839,15 @@ namespace MediaBrowser.Api
 
             _userManager.UpdateConfiguration(request.Id, request);
 
+        }
+
+        public void Post(UpdateUserMaxParentalRatingPolicy request)
+        {
+            var user = _userManager.GetUserById(request.Id);
+
+            user.Policy.MaxParentalRating = request.MaxParentalRating;
+
+            _userManager.UpdateUserPolicy(request.Id, user.Policy);
         }
 
         public void Post(UpdateUserPolicy request)
