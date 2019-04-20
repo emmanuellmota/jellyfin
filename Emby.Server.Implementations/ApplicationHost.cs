@@ -155,11 +155,6 @@ namespace Emby.Server.Implementations
         public event EventHandler HasPendingRestartChanged;
 
         /// <summary>
-        /// Occurs when [application updated].
-        /// </summary>
-        public event EventHandler<GenericEventArgs<PackageVersionInfo>> ApplicationUpdated;
-
-        /// <summary>
         /// Gets a value indicating whether this instance has changes that require the entire application to restart.
         /// </summary>
         /// <value><c>true</c> if this instance has pending application restart; otherwise, <c>false</c>.</value>
@@ -620,8 +615,6 @@ namespace Emby.Server.Implementations
 
             DiscoverTypes();
 
-            SetHttpLimit();
-
             await RegisterResources(serviceCollection).ConfigureAwait(false);
 
             FindParts();
@@ -918,8 +911,7 @@ namespace Emby.Server.Implementations
                 .Distinct();
 
             logger.LogInformation("Arguments: {Args}", commandLineArgs);
-            // FIXME: @bond this logs the kernel version, not the OS version
-            logger.LogInformation("Operating system: {OS} {OSVersion}", OperatingSystem.Name, Environment.OSVersion.Version);
+            logger.LogInformation("Operating system: {OS}", OperatingSystem.Name);
             logger.LogInformation("Architecture: {Architecture}", RuntimeInformation.OSArchitecture);
             logger.LogInformation("64-Bit Process: {Is64Bit}", Environment.Is64BitProcess);
             logger.LogInformation("User Interactive: {IsUserInteractive}", Environment.UserInteractive);
@@ -927,19 +919,6 @@ namespace Emby.Server.Implementations
             logger.LogInformation("Program data path: {ProgramDataPath}", appPaths.ProgramDataPath);
             logger.LogInformation("Web resources path: {WebPath}", appPaths.WebPath);
             logger.LogInformation("Application directory: {ApplicationPath}", appPaths.ProgramSystemPath);
-        }
-
-        private void SetHttpLimit()
-        {
-            try
-            {
-                // Increase the max http request limit
-                ServicePointManager.DefaultConnectionLimit = Math.Max(96, ServicePointManager.DefaultConnectionLimit);
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError(ex, "Error setting http limit");
-            }
         }
 
         private X509Certificate2 GetCertificate(CertificateInfo info)
@@ -1408,9 +1387,9 @@ namespace Emby.Server.Implementations
         public async Task<SystemInfo> GetSystemInfo(CancellationToken cancellationToken)
         {
             var localAddress = await GetLocalApiUrl(cancellationToken).ConfigureAwait(false);
-            
-            string wanAddress; 
-            
+
+            string wanAddress;
+
             if (string.IsNullOrEmpty(ServerConfigurationManager.Configuration.WanDdns))
             {
                 wanAddress = await GetWanApiUrlFromExternal(cancellationToken).ConfigureAwait(false);
@@ -1467,10 +1446,10 @@ namespace Emby.Server.Implementations
 
         public async Task<PublicSystemInfo> GetPublicSystemInfo(CancellationToken cancellationToken)
         {
-            var localAddress = await GetLocalApiUrl(cancellationToken).ConfigureAwait(false);            
-            
+            var localAddress = await GetLocalApiUrl(cancellationToken).ConfigureAwait(false);
+
             string wanAddress;
-            
+
             if (string.IsNullOrEmpty(ServerConfigurationManager.Configuration.WanDdns))
             {
                 wanAddress = await GetWanApiUrlFromExternal(cancellationToken).ConfigureAwait(false);
@@ -1539,6 +1518,7 @@ namespace Emby.Server.Implementations
             {
                 Logger.LogError(ex, "Error getting WAN Ip address information");
             }
+
             return null;
         }
 
@@ -1585,9 +1565,9 @@ namespace Emby.Server.Implementations
             }
             return string.Format("http://{0}:{1}",
                     host,
-                    ServerConfigurationManager.Configuration.PublicPort.ToString(CultureInfo.InvariantCulture));      
+                    ServerConfigurationManager.Configuration.PublicPort.ToString(CultureInfo.InvariantCulture));
         }
-        
+
         public Task<List<IpAddressInfo>> GetLocalIpAddresses(CancellationToken cancellationToken)
         {
             return GetLocalIpAddressesInternal(true, 0, cancellationToken);
@@ -1839,24 +1819,6 @@ namespace Emby.Server.Implementations
 
         public virtual void EnableLoopback(string appName)
         {
-        }
-
-        /// <summary>
-        /// Called when [application updated].
-        /// </summary>
-        /// <param name="package">The package.</param>
-        protected void OnApplicationUpdated(PackageVersionInfo package)
-        {
-            Logger.LogInformation("Application has been updated to version {0}", package.versionStr);
-
-            ApplicationUpdated?.Invoke(
-                this,
-                new GenericEventArgs<PackageVersionInfo>()
-                {
-                    Argument = package
-                });
-
-            NotifyPendingRestart();
         }
 
         private bool _disposed = false;
